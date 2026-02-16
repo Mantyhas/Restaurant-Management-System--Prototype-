@@ -1,0 +1,88 @@
+<?php
+// AUTH privalo būti įkeltas pirmas
+require_once __DIR__ . '/../includes/auth.php';
+
+// Po to DB ir tik tada header
+require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/header.php';
+
+// Tik manager arba admin
+if (!is_manager() && !is_admin()) {
+    echo "<div class='form-box'><p>Prieiga tik administratoriui arba vadybininkui.</p></div>";
+    require_once __DIR__ . '/../includes/footer.php';
+    exit;
+}
+
+// Patvirtinti / atmesti
+if (isset($_GET['approve'])) {
+    $pdo->prepare("UPDATE reservations SET status='patvirtinta' WHERE id=?")
+        ->execute([intval($_GET['approve'])]);
+}
+if (isset($_GET['reject'])) {
+    $pdo->prepare("UPDATE reservations SET status='atmesta' WHERE id=?")
+        ->execute([intval($_GET['reject'])]);
+}
+
+// Gauti rezervacijas
+$stmt = $pdo->query("
+    SELECT r.id, r.table_number, r.datetime, r.status,
+           u.name AS user_name,
+           res.name AS restaurant_name
+    FROM reservations r
+    JOIN users u ON r.user_id = u.id
+    JOIN restaurants res ON r.restaurant_id = res.id
+    ORDER BY r.datetime DESC
+");
+$reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<h2 class="page-title">Rezervacijų valdymas</h2>
+
+<div style="max-width:1100px;margin:0 auto;">
+<table style="
+    width:100%;
+    border-collapse: collapse;
+    background:#fffdf7;
+    box-shadow:0 4px 14px rgba(0,0,0,0.12);
+">
+    <thead>
+        <tr style="background:#d8c8aa;">
+            <th style="padding:10px;border:1px solid #b7a584;">Vartotojas</th>
+            <th style="padding:10px;border:1px solid #b7a584;">Restoranas</th>
+            <th style="padding:10px;border:1px solid #b7a584;">Staliukas</th>
+            <th style="padding:10px;border:1px solid #b7a584;">Data ir laikas</th>
+            <th style="padding:10px;border:1px solid #b7a584;">Statusas</th>
+            <th style="padding:10px;border:1px solid #b7a584;">Veiksmai</th>
+        </tr>
+    </thead>
+    <tbody>
+
+    <?php foreach ($reservations as $row): ?>
+        <?php 
+            $color = match ($row['status']) {
+                'patvirtinta' => '#1f7a1f',
+                'atmesta'     => '#b31d1d',
+                default       => '#444'
+            };
+        ?>
+        <tr>
+            <td style="padding:8px;border:1px solid #d7c7a5;"><?= htmlspecialchars($row['user_name']) ?></td>
+            <td style="padding:8px;border:1px solid #d7c7a5;"><?= htmlspecialchars($row['restaurant_name']) ?></td>
+            <td style="padding:8px;border:1px solid #d7c7a5;"><?= htmlspecialchars($row['table_number']) ?></td>
+            <td style="padding:8px;border:1px solid #d7c7a5;"><?= htmlspecialchars($row['datetime']) ?></td>
+            <td style="padding:8px;border:1px solid #d7c7a5;color:<?= $color ?>;font-weight:bold;">
+                <?= htmlspecialchars($row['status']) ?>
+            </td>
+            <td style="padding:8px;border:1px solid #d7c7a5;">
+                <a href="?approve=<?= $row['id'] ?>" style="color:green;font-weight:bold;">Patvirtinti</a> |
+                <a href="?reject=<?= $row['id'] ?>" style="color:red;font-weight:bold;">Atmesti</a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+
+    </tbody>
+</table>
+</div>
+
+<?php require_once __DIR__ . '/../includes/footer.php'; ?>
+

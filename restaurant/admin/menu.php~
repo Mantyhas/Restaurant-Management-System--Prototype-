@@ -1,0 +1,67 @@
+<?php
+include '../includes/header.php';
+include '../includes/db.php';
+include_once '../includes/auth.php';
+
+// Leisti tik adminui ar vadybininkui
+if (!is_manager()) {
+    echo "<p>Prieiga tik administratoriui.</p>";
+    include '../includes/footer.php';
+    exit;
+}
+
+// Jei siunčiamas naujas patiekalas – įrašom
+if (isset($_POST['add_item'])) {
+    $title = trim($_POST['title']);
+    $price = floatval($_POST['price']);
+    $category = trim($_POST['category']);
+
+    if ($title && $price && $category) {
+        $stmt = $pdo->prepare("INSERT INTO menu_items (title, price, category) VALUES (?, ?, ?)");
+        $stmt->execute([$title, $price, $category]);
+        echo "<p style='color:green;'>✅ Patiekalas sėkmingai pridėtas!</p>";
+    } else {
+        echo "<p style='color:red;'>❌ Užpildykite visus laukus!</p>";
+    }
+}
+
+// Jeigu siunčiamas šalinimo užklausimas
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
+    $stmt = $pdo->prepare("DELETE FROM menu_items WHERE id = ?");
+    $stmt->execute([$id]);
+    echo "<p style='color:orange;'>Patiekalas pašalintas.</p>";
+}
+
+// Patiekalų sąrašas
+echo "<h2>Meniu valdymas</h2>";
+
+$stmt = $pdo->query("SELECT * FROM menu_items ORDER BY category, title");
+
+echo "<table border='1' cellpadding='5'>
+<tr><th>Pavadinimas</th><th>Kaina (€)</th><th>Kategorija</th><th>Veiksmas</th></tr>";
+
+foreach ($stmt as $row) {
+    echo "<tr>
+        <td>{$row['title']}</td>
+        <td>{$row['price']}</td>
+        <td>{$row['category']}</td>
+        <td><a href='?delete={$row['id']}'>Pašalinti</a></td>
+    </tr>";
+}
+echo "</table><br>";
+?>
+
+<h3>Pridėti naują patiekalą:</h3>
+<form method="POST">
+  <label>Pavadinimas:</label><br>
+  <input type="text" name="title" required><br>
+  <label>Kaina (€):</label><br>
+  <input type="number" step="0.01" name="price" required><br>
+  <label>Kategorija:</label><br>
+  <input type="text" name="category" required><br><br>
+  <button type="submit" name="add_item">Pridėti</button>
+</form>
+
+<?php include '../includes/footer.php'; ?>
+

@@ -1,0 +1,27 @@
+<?php
+include '../includes/header.php';
+include '../includes/db.php';
+include_once '../includes/auth.php';
+
+// Leidžiama tik adminui ar vadybininkui
+if (!is_manager()) {
+    echo "<p>Prieiga tik administratoriui.</p>";
+    include '../includes/footer.php';
+    exit;
+}
+
+// --- Veiksmai ---
+if (isset($_GET['approve'])) {
+    $id = intval($_GET['approve']);
+    $pdo->prepare("UPDATE reservations SET status='patvirtinta' WHERE id=?")->execute([$id]);
+    echo "<p style='color:green;'>Rezervacija patvirtinta!</p>";
+}
+
+if (isset($_GET['reject'])) {
+    $id = intval($_GET['reject']);
+    $pdo->prepare("UPDATE reservations SET status='atmesta' WHERE id=?")->execute([$id]);
+    echo "<p style='color:red;'>Rezervacija atmesta!</p>";
+}
+
+//
+

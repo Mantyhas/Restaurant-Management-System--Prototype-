@@ -1,0 +1,213 @@
+<?php
+include 'includes/header.php';
+include 'includes/db.php';
+include_once 'includes/auth.php';
+
+// ar naudotojas turi teises redaguoti (vadybininkas arba adminas)
+$isManager = (function_exists('is_manager') && is_manager()) ||
+             (function_exists('is_admin') && is_admin());
+
+// ar esame redagavimo režime
+$editMode = $isManager && isset($_GET['edit']) && $_GET['edit'] == '1';
+
+// pasirenkam restoraną (A,B,C) per ?restaurant=1/2/3
+$restaurant_id = isset($_GET['restaurant']) ? (int)$_GET['restaurant'] : null;
+
+// pasiimam restoranų sąrašą iš DB (A,B,C)
+$restaurants = $pdo->query("SELECT id, name FROM restaurants ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+
+// ===== 1. Užkrovimas paslėptų kombinacijų =====
+$hiddenMap = []; // [menu_item_id][restaurant_id] = true
+$hiddenRows = $pdo->query("SELECT menu_item_id, restaurant_id FROM menu_item_hidden")->fetchAll(PDO::FETCH_ASSOC);
+foreach ($hiddenRows as $row) {
+    $hiddenMap[$row['menu_item_id']][$row['restaurant_id']] = true;
+}
+
+// ===== 2. Jei POST ir editMode – išsaugom matomumą =====
+if ($editMode && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_visibility'])) {
+
+    // visi patiekalai
+    $allDishIds = $pdo->query("SELECT id FROM menu_items")->fetchAll(PDO::FETCH_COLUMN);
+
+    // iš formos ateina visible[dishId][] = <restoranų id>
+    $visible = [];
+    if (isset($_POST['visible']) && is_array($_POST['visible'])) {
+        foreach ($_POST['visible'] as $dishId => $restIds) {
+            $dishId = (int)$dishId;
+            $visible[$dishId] = array_map('intval', $restIds);
+        }
+    }
+
+    // išvalom senius įrašus
+    $pdo->exec("DELETE FROM menu_item_hidden");
+
+    // sudedam naujas paslėptas kombinacijas
+    $ins = $pdo->prepare("INSERT INTO menu_item_hidden (menu_item_id, restaurant_id) VALUES (?, ?)");
+
+    foreach ($allDishIds as $dishId) {
+        foreach ($restaurants as $rest) {
+            $rid = (int)$rest['id'];
+            // jei šitoje poroje nėra "visible", reiškia turi būti paslėpta
+            if (!isset($visible[$dishId]) || !in_array($rid, $visible[$dishId])) {
+                $ins->execute([$dishId, $rid]);
+            }
+        }
+    }
+
+    echo "<p class='reservation-success'>Meniu matomumas sėkmingai atnaujintas.</p>";
+
+    // iš naujo persiskaitom hiddenMap
+    $hiddenMap = [];
+    $hiddenRows = $pdo->query("SELECT menu_item_id, restaurant_id FROM menu_item_hidden")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($hiddenRows as $row) {
+        $hiddenMap[$row['menu_item_id']][$row['restaurant_id']] = true;
+    }
+}
+
+// ===== 3. Patiekalai iš DB =====
+$dishes = $pdo->query("SELECT id, title, price, category, description FROM menu_items ORDER BY category, title")
+              ->fetchAll(PDO::FETCH_ASSOC);
+
+// sugrupuojam pagal kategoriją
+$grouped = [];
+foreach ($dishes as $dish) {
+    $grouped[$dish['category']][] = $dish;
+}
+
+// kategorijų tvarka ir pavadinimai
+$categoriesOrder = [
+    'pagrindinis' => 'Pagrindiniai patiekalai',
+    'desertas'    => 'Desertai',
+    'gerimai'     => 'Gėrimai'
+];
+?>
+
+<h2 style="text-align:center;margin-top:30px;">Meniu</h2>
+
+<div class="menu-top-bar">
+  <div class="menu-rest-buttons">
+    <?php foreach ($restaurants as $rest): ?>
+      <?php
+        $active = ($restaurant_id === (int)$rest['id']);
+      ?>
+      <a
+        href="menu.php?restaurant=<?= $rest['id'] ?><?= $editMode ? '&edit=1' : '' ?>"
+        class="btn <?= $active ? 'btn-active' : 'btn-outline' ?>"
+      >
+        <?= htmlspecialchars($rest['name']) ?>
+      </a>
+    <?php endforeach; ?>
+  </div>
+
+  <div class="menu-actions">
+    <?php if ($isManager): ?>
+      <?php if ($editMode): ?>
+        <a href="menu.php<?= $restaurant_id ? '?restaurant='.$restaurant_id : '' ?>" class="btn btn-secondary">
+          Baigti redagavimą
+        </a>
+      <?php else: ?>
+        <a href="menu.php?edit=1<?= $restaurant_id ? '&restaurant='.$restaurant_id : '' ?>" class="btn">
+          Redaguoti meniu
+        </a>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+<?php if (!$editMode): ?>
+
+  <!-- ===== NORMALUS RODYMAS VARTOTOJUI ===== -->
+  <div class="menu-wrapper">
+    <div class="menu-grid">
+      <?php foreach ($categoriesOrder as $catKey => $catLabel): ?>
+        <?php
+        if (empty($grouped[$catKey])) continue;
+        ?>
+        <section class="menu-section">
+          <h3><?= htmlspecialchars($catLabel) ?></h3>
+          <div class="menu-cards">
+            <?php foreach ($grouped[$catKey] as $dish): ?>
+
+              <?php
+              // jei pasirinktas konkretus restoranas ir šis patiekalas jam paslėptas – nerodom
+              if ($restaurant_id &&
+                  isset($hiddenMap[$dish['id']][$restaurant_id])) {
+                  continue;
+              }
+              ?>
+              <article class="menu-card">
+                <div class="menu-card-header">
+                  <span class="dish-title"><?= htmlspecialchars($dish['title']) ?></span>
+                  <span class="dish-price"><?= number_format($dish['price'], 2) ?> €</span>
+                </div>
+                <?php if (!empty($dish['description'])): ?>
+                    <p class="dish-desc"><?= nl2br(htmlspecialchars($dish['description'])) ?></p>
+                <?php endif; ?>
+              </article>
+
+            <?php endforeach; ?>
+          </div>
+        </section>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+<?php else: ?>
+
+  <!-- ===== REDAGAVIMO REŽIMAS VADYBININKUI ===== -->
+  <div class="menu-edit-wrapper">
+    <p style="margin-bottom:15px;">
+      Pažymėkite, kuriuose restoranuose turi būti rodomas kiekvienas patiekalas.
+    </p>
+
+    <form method="post">
+      <input type="hidden" name="save_visibility" value="1">
+
+      <table class="menu-edit-table">
+        <thead>
+          <tr>
+            <th>Patiekalas</th>
+            <th>Kategorija</th>
+            <?php foreach ($restaurants as $rest): ?>
+              <th><?= htmlspecialchars($rest['name']) ?></th>
+            <?php endforeach; ?>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($dishes as $dish): ?>
+          <tr>
+            <td><?= htmlspecialchars($dish['title']) ?></td>
+            <td>
+              <?= isset($categoriesOrder[$dish['category']])
+                    ? htmlspecialchars($categoriesOrder[$dish['category']])
+                    : htmlspecialchars($dish['category']); ?>
+            </td>
+            <?php foreach ($restaurants as $rest): ?>
+              <?php
+                $rid = (int)$rest['id'];
+                $checked = !isset($hiddenMap[$dish['id']][$rid]); // jei nėra įrašo hiddenMap – rodysim
+              ?>
+              <td style="text-align:center;">
+                <input
+                  type="checkbox"
+                  name="visible[<?= $dish['id'] ?>][]"
+                  value="<?= $rid ?>"
+                  <?= $checked ? 'checked' : '' ?>
+                >
+              </td>
+            <?php endforeach; ?>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+
+      <div style="margin-top:15px; text-align:right;">
+        <button type="submit" class="btn">Išsaugoti matomumą</button>
+      </div>
+    </form>
+  </div>
+
+<?php endif; ?>
+
+<?php include 'includes/footer.php'; ?>
+

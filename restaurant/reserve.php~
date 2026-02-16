@@ -1,0 +1,187 @@
+<?php
+include 'includes/header.php';
+include 'includes/db.php';
+include_once 'includes/auth.php';
+require_login();
+
+/* Helper funkcijos rezervacijų statusui ir nuorodoms */
+function status($table_num, $reservedTables) {
+    return in_array($table_num, $reservedTables) ? "table-busy" : "table-free";
+}
+function link_for($table_num, $restaurant_id, $date, $time, $reservedTables) {
+    if (in_array($table_num, $reservedTables)) return "";
+    return "href='reserve.php?book=$table_num&restaurant=$restaurant_id&date=$date&time=$time'";
+}
+
+/* Patikrinimai */
+$isRestSelected = isset($_GET['restaurant']);
+$isTableSelected = isset($_GET['book']);
+?>
+
+<h2 style="text-align:center;margin-top:30px;">Rezervuoti staliuką</h2>
+
+<?php if (!$isRestSelected && !$isTableSelected): ?>
+<!-- ==========================
+     1. PASIRINKTI DATĄ IR LAIKĄ
+     ========================== -->
+<div class="form-box">
+<form method="post">
+  <label>Pasirinkite datą:</label>
+  <input type="date" name="date" required>
+
+  <label>Pasirinkite laiką:</label>
+  <select name="time" required>
+      <option value="">Pasirinkite laiką</option>
+      <?php
+      $times = [
+          "10:00","10:30","11:00","11:30",
+          "12:00","12:30","13:00","13:30",
+          "14:00","14:30","15:00","15:30",
+          "16:00","16:30","17:00","17:30",
+          "18:00","18:30","19:00","19:30","20:00"
+      ];
+      foreach ($times as $t) echo "<option value='$t'>$t</option>";
+      ?>
+  </select>
+
+  <button type="submit" name="check">Tikrinti laisvus restoranus</button>
+</form>
+</div>
+<?php endif; ?>
+
+<?php
+/* ================================
+   2. LAISVŲ RESTORANŲ PAIEŠKA
+   ================================ */
+if (isset($_POST['check'])) {
+
+    $date = $_POST['date'];
+    $time = $_POST['time'];
+    $datetime = "$date $time:00";
+
+    echo "<h3 style='text-align:center;'>Laisvi restoranai ($datetime)</h3>";
+
+    $sql = "
+        SELECT r.id, r.name 
+        FROM restaurants r
+        WHERE EXISTS (
+            SELECT * FROM tables t
+            WHERE t.restaurant_id = r.id
+            AND t.table_number NOT IN (
+                SELECT table_number
+                FROM reservations
+                WHERE datetime = ?
+                AND restaurant_id = r.id
+            )
+        )
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$datetime]);
+    $restaurants = $stmt->fetchAll();
+
+    if (!$restaurants) {
+        echo "<p class='no-restaurants'>Nėra laisvų restoranų šiuo metu.</p>";
+    } else {
+        echo "<div class='restaurant-list'>";
+        foreach ($restaurants as $r) {
+            echo "
+                <a class='restaurant-card'
+                   href='reserve.php?restaurant={$r['id']}&date=$date&time=$time'>
+                   {$r['name']}
+                </a>
+            ";
+        }
+        echo "</div>";
+    }
+}
+
+/* ===========================
+   3. RESTORANO ŽEMĖLAPIS
+   =========================== */
+if ($isRestSelected) {
+    $restaurant_id = $_GET['restaurant'];
+    $date = $_GET['date'];
+    $time = $_GET['time'];
+    $datetime = "$date $time:00";
+
+    // Gauti restorano pavadinimą
+    $stmtName = $pdo->prepare("SELECT name FROM restaurants WHERE id = ?");
+    $stmtName->execute([$restaurant_id]);
+    $restName = $stmtName->fetchColumn();
+
+    // Užimti stalai
+    $stmt = $pdo->prepare("SELECT table_number FROM reservations WHERE restaurant_id = ? AND datetime = ?");
+    $stmt->execute([$restaurant_id, $datetime]);
+    $reservedTables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    echo "<h3 style='text-align:center;margin-top:30px;'>
+            Pasirinkite staliuką – 
+            <span style='color:#6d5e4f; font-weight:bold;'>$restName</span>
+            <br>
+            <span style='font-size:16px;'>$date $time</span>
+          </h3>";
+    ?>
+
+    <!-- RESTORANO PLANAS -->
+    <div class="floorplan">
+
+        <!-- Eilė 1 -->
+        <div class="table-row">
+            <a <?= link_for(1,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(1,$reservedTables) ?>">Stalas 1</a>
+            <a <?= link_for(2,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(2,$reservedTables) ?>">Stalas 2</a>
+            <a <?= link_for(3,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(3,$reservedTables) ?>">Stalas 3</a>
+            <a <?= link_for(4,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(4,$reservedTables) ?>">Stalas 4</a>
+        </div>
+
+        <!-- Eilė 2 -->
+        <div class="table-row">
+            <a <?= link_for(5,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(5,$reservedTables) ?>">Stalas 5</a>
+            <a <?= link_for(6,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(6,$reservedTables) ?>">Stalas 6</a>
+            <a <?= link_for(7,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(7,$reservedTables) ?>">Stalas 7</a>
+            <a <?= link_for(8,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(8,$reservedTables) ?>">Stalas 8</a>
+        </div>
+
+        <!-- Eilė 3 -->
+        <div class="table-row">
+            <a <?= link_for(9,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(9,$reservedTables) ?>">Stalas 9</a>
+            <a <?= link_for(10,$restaurant_id,$date,$time,$reservedTables) ?> class="table-item <?= status(10,$reservedTables) ?>">Stalas 10</a>
+        </div>
+
+        <!-- WC + Virtuvė -->
+        <div class="blocks">
+            <div class="wc-block">WC 🚻</div>
+            <div class="kitchen-block">Virtuvė 🍳</div>
+        </div>
+
+        <div class="entrance">← Įėjimas</div>
+    </div>
+<?php
+}
+
+/* ==========================
+   4. REZERVACIJOS SAUGOJIMAS
+   ========================== */
+if ($isTableSelected) {
+    $table = $_GET['book'];
+    $restaurant_id = $_GET['restaurant'];
+    $date = $_GET['date'];
+    $time = $_GET['time'];
+    $datetime = "$date $time:00";
+
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE user_id=? AND status='patvirtinta'");
+    $stmt->execute([$_SESSION['user_id']]);
+    $count = $stmt->fetchColumn();
+
+    $status = ($count >= 5) ? 'patvirtinta' : 'pateikta';
+
+    $insert = $pdo->prepare("INSERT INTO reservations (user_id, restaurant_id, table_number, datetime, status)
+                             VALUES (?, ?, ?, ?, ?)");
+    $insert->execute([$_SESSION['user_id'], $restaurant_id, $table, $datetime, $status]);
+
+    echo "<p class='reservation-success'>
+            Rezervacija atlikta! Statusas: <b>$status</b>
+          </p>";
+}
+include 'includes/footer.php';
+?>
+

@@ -1,0 +1,26 @@
+<?php
+include 'includes/header.php';
+?>
+
+<div class="hero-container">
+    <div class="hero-text">
+        <h1 class="hero-title">Restoranų tinklas</h1>
+        <p class="hero-subtitle">
+            Sveiki atvykę! Čia galite peržiūrėti meniu ir rezervuoti staliuką mūsų restoranuose.
+        </p>
+
+        <div class="hero-buttons">
+            <a href="menu.php" class="btn btn-large">Peržiūrėti meniu</a>
+            <a href="reserve.php" class="btn btn-large btn-outline">Rezervuoti staliuką</a>
+        </div>
+    </div>
+
+    <div class="hero-image">
+        <img src="restoranas.jpg" alt="Restoranas" />
+    </div>
+</div>
+
+<?php
+include 'includes/footer.php';
+?>
+

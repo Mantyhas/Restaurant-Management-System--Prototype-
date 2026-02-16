@@ -1,0 +1,37 @@
+<?php
+include 'includes/header.php';
+include 'includes/db.php';
+include 'includes/auth.php';
+
+if (isset($_POST['submit'])) {
+    $name = trim($_POST['name']);
+    $email = trim($_POST['email']);
+    $password = $_POST['password'];
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+
+    $sql = "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)";
+    $stmt = $pdo->prepare($sql);
+    try {
+        $stmt->execute([$name, $email, $hash]);
+        echo "<p style='color:green;'>Registracija sėkminga! Dabar galite prisijungti.</p>";
+    } catch (PDOException $e) {
+        echo "<p style='color:red;'>El. paštas jau naudojamas.</p>";
+    }
+}
+?>
+
+<h2>Registracija</h2>
+<form method="post">
+  <label>Vardas:</label><br>
+  <input type="text" name="name" required><br><br>
+  <label>El. paštas:</label><br>
+  <input type="email" name="email" required><br><br>
+  <label>Slaptažodis:</label><br>
+  <input type="password" name="password" required><br><br>
+  <button type="submit" name="submit">Registruotis</button>
+</form>
+
+<p>Jau turite paskyrą? <a href="login.php">Prisijunkite</a></p>
+
+<?php include 'includes/footer.php'; ?>
+

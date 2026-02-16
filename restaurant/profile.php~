@@ -1,0 +1,25 @@
+<?php
+include 'includes/header.php';
+include 'includes/db.php';
+include 'includes/auth.php';
+require_login();
+
+echo "<h2>Mano rezervacijos</h2>";
+
+$user_id = $_SESSION['user_id'];
+$stmt = $pdo->prepare("SELECT * FROM reservations WHERE user_id=? ORDER BY datetime DESC");
+$stmt->execute([$user_id]);
+
+if ($stmt->rowCount() == 0) {
+    echo "<p>Neturite rezervacijų.</p>";
+} else {
+    echo "<table border='1' cellpadding='5'><tr><th>Restoranas</th><th>Data</th><th>Statusas</th></tr>";
+    foreach ($stmt as $row) {
+        echo "<tr><td>{$row['restaurant']}</td><td>{$row['datetime']}</td><td>{$row['status']}</td></tr>";
+    }
+    echo "</table>";
+}
+
+include 'includes/footer.php';
+?>
+

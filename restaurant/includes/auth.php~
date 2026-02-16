@@ -1,0 +1,50 @@
+<?php
+if (!function_exists('is_logged_in')) {
+
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Ar vartotojas prisijungęs
+    function is_logged_in() {
+        return isset($_SESSION['user_id']);
+    }
+
+    // *** TIKRAS ADMINISTRATORIUS (REZERVACIJŲ), role = manager ***
+    function is_admin_real() {
+        return isset($_SESSION['role']) && $_SESSION['role'] === 'manager';
+    }
+
+    // *** VADYBININKAS (MENIU REDAGAVIMAS), role = admin ***
+    function is_menu_manager() {
+        return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+    }
+
+    // Tik prisijungus
+    function require_login() {
+        if (!is_logged_in()) {
+            header("Location: /restaurant/login.php");
+            exit();
+        }
+    }
+
+    // Tik meniu vadybininkui
+    function require_menu_manager() {
+        if (!is_menu_manager()) {
+            echo "<p>Prieiga tik meniu vadybininkui.</p>";
+            include __DIR__ . "/footer.php";
+            exit();
+        }
+    }
+
+    // Tik rezervacijų administratoriui
+    function require_reservation_admin() {
+        if (!is_admin_real()) {
+            echo "<p>Prieiga tik rezervacijų administratoriui.</p>";
+            include __DIR__ . "/footer.php";
+            exit();
+        }
+    }
+}
+?>
+
